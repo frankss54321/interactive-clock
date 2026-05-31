@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>互動式教學時鐘</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23ffffff%22 stroke=%22%234CAF50%22 stroke-width=%228%22/><path d=%22M50 20 L50 50 L70 50%22 fill=%22none%22 stroke=%22%23333333%22 stroke-width=%228%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/><circle cx=%2250%22 cy=%2250%22 r=%226%22 fill=%22%23e74c3c%22/></svg>">
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: '微軟正黑體', Arial, sans-serif; overflow: hidden; background-color: #0b192c; }
+        #sky-container { width: 100%; height: 100%; display: flex; flex-direction: row; justify-content: center; align-items: center; position: relative; gap: 40px; }
+        .left-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; position: relative; z-index: 3; margin-right: 20px; }
+        .right-panel { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; padding: 10px; box-sizing: border-box; gap: 15px; position: relative; z-index: 10; margin-left: 20px; }
+        #left-controls-container { position: absolute; bottom: 15px; left: 15px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; z-index: 100; }
+        #btn-reset { background-color: #ff4d4d; color: white; border: none; border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.15); transition: 0.2s; outline: none; user-select: none; -webkit-user-select: none; }
+        #btn-reset:hover { background-color: #ff3333; transform: scale(1.05); }
+        #btn-reset:active { transform: scale(0.95); }
+        #visibility-segmented { display: flex; background: rgba(255, 255, 255, 0.85); padding: 3px; border-radius: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); gap: 3px; }
+        .seg-btn { background-color: transparent; color: #555; border: none; border-radius: 6px; padding: 6px 11px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; outline: none; user-select: none; -webkit-user-select: none; }
+        .seg-btn:hover { background-color: rgba(0, 0, 0, 0.05); }
+        .seg-btn.active { background-color: #3498db; color: white; box-shadow: 0 1px 4px rgba(52, 152, 219, 0.3); }
+        #hand-selector { display: flex; gap: 6px; background: rgba(255, 255, 255, 0.85); padding: 5px; border-radius: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); }
+        .select-hand-btn { background-color: white; color: #333; border: 1.5px solid #4CAF50; border-radius: 6px; padding: 5px 11px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; outline: none; user-select: none; -webkit-user-select: none; }
+        .select-hand-btn:hover { background-color: #f0f0f0; }
+        .select-hand-btn.active { background-color: #4CAF50; color: white; }
+        .cloud { position: absolute; background: white; border-radius: 50%; opacity: 0.8; z-index: 1; filter: blur(3px); animation: float 30s linear infinite; }
+        .cloud1 { width: 15%; height: 8%; top: 20%; left: -15%; animation-duration: 40s; animation-name: float-left; }
+        .cloud2 { width: 10%; height: 6%; top: 35%; left: -10%; animation-duration: 35s; animation-name: float-left; }
+        .cloud3 { width: 12%; height: 7%; top: 50%; left: -12%; animation-duration: 45s; animation-name: float-left; }
+        .star { position: absolute; color: white; z-index: 1; text-shadow: 0 0 5px white, 0 0 10px white; animation: twinkle 1.5s infinite alternate; opacity: 0; }
+        .meteor-shower { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; z-index: 1; display: none; }
+        .meteor { position: absolute; width: 2px; height: 60px; background: linear-gradient(to top, rgba(255,255,255,1), rgba(255,255,255,0)); transform: rotate(45deg); opacity: 0; animation: meteor-fall 4s linear infinite; pointer-events: none; }
+        @keyframes meteor-fall {
+            0% { transform: translate(200px, -200px) rotate(45deg) scale(0.5); opacity: 0; }
+            10% { opacity: 1; transform: translate(100px, -100px) rotate(45deg) scale(1); }
+            30% { opacity: 0; transform: translate(-150px, 150px) rotate(45deg) scale(1); }
+            100% { opacity: 0; transform: translate(-150px, 150px) rotate(45deg) scale(0); }
+        }
+        #celestial-body { position: absolute; font-size: 60px; z-index: 2; user-select: none; -webkit-user-select: none; transform: translate(-50%, -50%); }
+        @media (min-width: 600px) { #celestial-body { font-size: 80px; } }
+        .control-panel { background: rgba(255, 255, 255, 0.9); padding: 10px 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); text-align: center; width: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; transition: width 0.3s ease; }
+        .panel-title { font-size: 16px; font-weight: bold; color: #4CAF50; margin-bottom: 8px; background: rgba(76, 175, 80, 0.1); padding: 3px 12px; border-radius: 10px; user-select: none; }
+        .digital-clock-row { display: grid !important; grid-template-columns: 80px 70px 35px 70px 35px 70px 35px !important; align-items: center !important; justify-content: center !important; width: 100% !important; }
+        .mode-hide-second .digital-clock-row { grid-template-columns: 80px 70px 35px 70px 35px !important; }
+        .mode-hide-second .second-group { display: none !important; }
+        .mode-hide-second #second-hand, .mode-hide-second #second-grabber { display: none !important; }
+        .mode-hide-hour .digital-clock-row { grid-template-columns: 70px 35px 70px 35px !important; }
+        .mode-hide-hour .hour-group { display: none !important; }
+        .mode-hide-hour #hour-hand, .mode-hide-hour #hour-grabber { display: none !important; }
+        .ampm-text { font-size: 26px; font-size: clamp(22px, 6vmin, 30px); font-weight: bold; color: #333; text-align: right; padding-right: 12px; user-select: none; -webkit-user-select: none; }
+        .ampm-spacer { width: 80px; height: 10px; visibility: hidden; }
+        .input-column { display: flex; flex-direction: column; align-items: center; margin: 0 4px; }
+        .adjust-btn { background-color: #e4e6eb; color: #65676b; border: none; border-radius: 6px; width: 45px; height: 26px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; -webkit-user-select: none; margin: 1px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: background-color 0.2s, color 0.2s; }
+        .adjust-btn:hover { background-color: #d8dadf; color: #1c1e21; }
+        .adjust-btn:active { transform: scale(0.95); }
+        .time-input { font-size: 36px; font-size: clamp(30px, 8vmin, 40px); font-weight: bold; color: #333; border: none; border-bottom: 2px dashed #4CAF50; background: transparent; text-align: center; font-family: inherit; width: 65px; outline: none; padding: 1px 0; margin: 1px 0; }
+        .time-input:hover, .time-input:focus { border-bottom: 2px solid #4CAF50; background: rgba(76, 175, 80, 0.05); }
+        .time-input::-webkit-outer-spin-button, .time-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .time-input { -moz-appearance: textfield; }
+        
+        /* 修正：單位「時、分、秒」全面改為高對比亮綠色 */
+        .unit-span { font-size: 20px; font-weight: bold; justify-self: center; color: #4CAF50; user-select: none; -webkit-user-select: none; }
+        
+        #clock-container { width: 82vmin; height: 82vmin; max-width: 440px; max-height: 440px; background: transparent; touch-action: none; filter: drop-shadow(0px 8px 16px rgba(0,0,0,0.45)); z-index: 3; position: relative; }
+        #status-text { font-size: 24px; font-weight: bold; color: #fff; margin-top: 15px; z-index: 10; text-shadow: 2px 2px 6px rgba(0,0,0,0.7); }
+        #watermark { position: absolute; bottom: 15px; right: 15px; font-size: 14px; color: rgba(255, 255, 255, 0.85); font-weight: bold; z-index: 100; pointer-events: none; user-select: none; -webkit-user-select: none; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
+        @media (max-width: 768px) {
+            #sky-container { flex-direction: column; justify-content: center; gap: 15px; }
+            .left-panel { height: 45%; width: 100%; margin-right: 0; }
+            .right-panel { height: 55%; width: 100%; margin-left: 0; flex-direction: column; justify-content: center; gap: 8px; padding: 5px; }
+            .control-panel { padding: 8px 15px; width: 95%; max-width: 380px; }
+            #left-controls-container { bottom: 10px; left: 50%; transform: translateX(-50%); align-items: center; }
+            #watermark { bottom: 8px; right: 8px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="sky-container">
+    <div class="cloud cloud1"></div>
+    <div class="cloud cloud2"></div>
+    <div class="cloud cloud3"></div>
+    <div class="star" style="top: 15%; left: 10%;">⭐</div>
+    <div class="star" style="top: 30%; left: 30%;">⭐</div>
+    <div class="star" style="top: 55%; left: 50%;">⭐</div>
+    <div class="star" style="top: 20%; left: 70%;">⭐</div>
+    <div class="star" style="top: 40%; left: 90%;">⭐</div>
+    <div class="meteor-shower" id="meteor-shower">
+        <div class="meteor" style="top: 10%; left: 20%; animation-delay: 0s; animation-duration: 3.5s;"></div>
+        <div class="meteor" style="top: 30%; left: 50%; animation-delay: 1.2s; animation-duration: 4s;"></div>
+        <div class="meteor" style="top: 5%; left: 80%; animation-delay: 2.5s; animation-duration: 3s;"></div>
+        <div class="meteor" style="top: 20%; left: 35%; animation-delay: 0.8s; animation-duration: 4.5s;"></div>
+        <div class="meteor" style="top: 15%; left: 65%; animation-delay: 2.1s; animation-duration: 3.8s;"></div>
+    </div>
+    <div id="celestial-body">🌙</div>
+
+    <div id="left-controls-container">
+        <button id="btn-reset" onclick="resetTimeToMidnight()">時間重置 ↺</button>
+        <div id="hand-selector">
+            <button id="btn-select-hour" class="select-hand-btn" onclick="selectHand('hour')">時針</button>
+            <button id="btn-select-minute" class="select-hand-btn active" onclick="selectHand('minute')">分針</button>
+            <button id="btn-select-second" class="select-hand-btn" onclick="selectHand('second')">秒針</button>
+        </div>
+        <div id="visibility-segmented">
+            <button id="btn-vis-hour" class="seg-btn" onclick="setVisibilityMode('hour')">隱藏時針</button>
+            <button id="btn-vis-full" class="seg-btn active" onclick="setVisibilityMode('full')">完整顯示</button>
+            <button id="btn-vis-second" class="seg-btn" onclick="setVisibilityMode('second')">隱藏秒針</button>
+        </div>
+    </div>
+
+    <div class="left-panel">
+        <svg id="clock-container" viewBox="0 0 200 200">
+            <defs>
+                <linearGradient id="bezel-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#ffffff"/>
+                    <stop offset="25%" stop-color="#dcdcdc"/>
+                    <stop offset="50%" stop-color="#b0b0b0"/>
+                    <stop offset="75%" stop-color="#cfcfcf"/>
+                    <stop offset="100%" stop-color="#5a5a5a"/>
+                </linearGradient>
+                <radialGradient id="inner-shadow" cx="50%" cy="50%" r="50%">
+                    <stop offset="90%" stop-color="#ffffff" stop-opacity="0"/>
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0.18"/>
+                </radialGradient>
+            </defs>
+            <circle cx="100" cy="100" r="97.5" fill="url(#bezel-grad)"></circle>
+            <circle cx="100" cy="100" r="94.5" fill="none" stroke="#444" stroke-width="0.5"></circle>
+            <circle cx="100" cy="100" r="94" fill="white"></circle>
+            <circle cx="100" cy="100" r="94" fill="url(#inner-shadow)"></circle>
+            <g id="clock-marks"></g>
+            <g id="clock-numbers"></g>
+            <line id="hour-hand" x1="100" y1="100" x2="100" y2="55" stroke="#333" stroke-width="6" stroke-linecap="round"></line>
+            <line id="minute-hand" x1="100" y1="100" x2="100" y2="28" stroke="#333" stroke-width="4" stroke-linecap="round"></line>
+            <line id="second-hand" x1="100" y1="110" x2="100" y2="20" stroke="#e74c3c" stroke-width="1.5" stroke-linecap="round"></line>
+            <line id="hour-grabber" x1="100" y1="100" x2="100" y2="55" stroke="transparent" stroke-width="15" stroke-linecap="round" style="cursor: pointer; pointer-events: none;"></line>
+            <line id="minute-grabber" x1="100" y1="100" x2="100" y2="28" stroke="transparent" stroke-width="15" stroke-linecap="round" style="cursor: pointer; pointer-events: auto;"></line>
+            <line id="second-grabber" x1="100" y1="110" x2="100" y2="20" stroke="transparent" stroke-width="15" stroke-linecap="round" style="cursor: pointer; pointer-events: none;"></line>
+            <circle cx="100" cy="100" r="5" fill="#333"></circle>
+            <circle cx="100" cy="100" r="2" fill="#e74c3c"></circle>
+        </svg>
+        <div id="status-text">現在時間：凌晨</div>
+    </div>
+
+    <div class="right-panel">
+        <div class="control-panel">
+            <div class="panel-title">12 小時制</div>
+            <div class="digital-clock-row">
+                <span id="text-ampm" class="ampm-text hour-group" data-value="AM">凌晨</span>
+                <div class="input-column hour-group">
+                    <button class="adjust-btn" onclick="adjustTime('hour', 1)">▲</button>
+                    <input type="number" id="input-hour-12" class="time-input" value="00" oninput="handle12hChange()" onblur="formatOnBlur12h(this)">
+                    <button class="adjust-btn" onclick="adjustTime('hour', -1)">▼</button>
+                </div>
+                <span class="unit-span hour-group">時</span>
+                <div class="input-column">
+                    <button class="adjust-btn" onclick="adjustTime('minute', 1)">▲</button>
+                    <input type="number" id="input-minute-12" class="time-input" value="00" oninput="handle12hChange()" onblur="formatOnBlur12h(this)">
+                    <button class="adjust-btn" onclick="adjustTime('minute', -1)">▼</button>
+                </div>
+                <span class="unit-span">分</span>
+                <div class="input-column second-group">
+                    <button class="adjust-btn" onclick="adjustTime('second', 1)">▲</button>
+                    <input type="number" id="input-second-12" class="time-input" value="00" oninput="handle12hChange()" onblur="formatOnBlur12h(this)">
+                    <button class="adjust-btn" onclick="adjustTime('second', -1)">▼</button>
+                </div>
+                <span class="unit-span second-group">秒</span>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="panel-title">24 小時制</div>
+            <div class="digital-clock-row">
+                <div class="ampm-spacer hour-group"></div>
+                <div class="input-column hour-group">
+                    <button class="adjust-btn" onclick="adjustTime('hour', 1)">▲</button>
+                    <input type="number" id="input-hour-24" class="time-input" value="00" oninput="handle24hChange()" onblur="formatOnBlur24h(this)">
+                    <button class="adjust-btn" onclick="adjustTime('hour', -1)">▼</button>
+                </div>
+                <span class="unit-span hour-group">時</span>
+                <div class="input-column">
+                    <button class="adjust-btn" onclick="adjustTime('minute', 1)">▲</button>
+                    <input type="number" id="input-minute-24" class="time-input" value="00" oninput="handle24hChange()" onblur="formatOnBlur24h(this)">
+                    <button class="adjust-btn" onclick="adjustTime('minute', -1)">▼</button>
+                </div>
+                <span class="unit-span">分</span>
+                <div class="input-column second-group">
+                    <button class="adjust-btn" onclick="adjustTime('second', 1)">▲</button>
+                    <input type="number" id="input-second-24" class="time-input" value="00" oninput="handle24hChange()" onblur="formatOnBlur24h(this)">
+                    <button class="adjust-btn" onclick="adjustTime('second', -1)">▼</button>
+                </div>
+                <span class="unit-span second-group">秒</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 右下角專屬高飽和度浮水印 -->
+    <div id="watermark">Designed by 致宇老師</div>
+</div>
+
+<script>
+window.onerror = function(message, source, lineno, colno, error) {
+    alert("時鐘系統啟動失敗！\n錯誤資訊：" + message + "\n錯誤行號：" + lineno);
+    return false;
+};
+
+var totalSeconds = 0; 
+var is24HourFormat = false; 
+var isDragging = false;
+var activeHand = "minute"; 
+var currentMinuteRecord = totalSeconds % 60;
+var visibilityMode = "full"; 
+
+var skyColors = [
+    { h: 0,  top: [11, 25, 44],   bottom: [26, 54, 93] },     
+    { h: 5,  top: [255, 126, 95], bottom: [254, 180, 123] },  
+    { h: 7,  top: [135, 206, 235],bottom: [224, 246, 255] },  
+    { h: 12, top: [255, 215, 0],  bottom: [255, 255, 150] },  
+    { h: 16, top: [135, 206, 235],bottom: [224, 246, 255] },  
+    { h: 18, top: [255, 126, 95], bottom: [254, 180, 123] },  
+    { h: 19, top: [11, 25, 44],   bottom: [26, 54, 93] },     
+    { h: 24, top: [11, 25, 44],   bottom: [26, 54, 93] }
+];
+
+var skyContainer = document.getElementById('sky-container');
+var celestialBody = document.getElementById('celestial-body');
+var hourHand = document.getElementById('hour-hand');
+var minuteHand = document.getElementById('minute-hand');
+var secondHand = document.getElementById('second-hand');
+var hourGrabber = document.getElementById('hour-grabber');
+var minuteGrabber = document.getElementById('minute-grabber');
+var secondGrabber = document.getElementById('second-grabber');
+var clockContainer = document.getElementById('clock-container');
+var statusText = document.getElementById('status-text');
+var textAmpm = document.getElementById('text-ampm');
+var inputHour12 = document.getElementById('input-hour-12');
+var inputMinute12 = document.getElementById('input-minute-12');
+var inputSecond12 = document.getElementById('input-second-12');
+var inputHour24 = document.getElementById('input-hour-24');
+var inputMinute24 = document.getElementById('input-minute-24');
+var inputSecond24 = document.getElementById('input-second-24');
+var clouds = document.getElementsByClassName('cloud');
+var stars = document.getElementsByClassName('star');
+var meteorShower = document.getElementById('meteor-shower'); 
+
+function padZero(num) {
+    return num < 10 ? '0' + num : num;
+}
+
+function getAmpmChinese(seconds) {
+    var h = Math.floor(seconds / 3600);
+    if (seconds === 0) { return "凌晨"; } 
+    else if (seconds > 0 && seconds < 43200) { return "上午"; } 
+    else if (h === 12) { return "中午"; } 
+    else { return "下午"; }
+}
+
+// --- 4. 點擊按鈕 ▲ / ▼ 的秒級微調函數 ---
+function adjustTime(type, amount) {
+    if (type === 'hour') { totalSeconds += amount * 3600; } 
+    else if (type === 'minute') { totalSeconds += amount * 60; } 
+    else if (type === 'second') { totalSeconds += amount; }
+    if (totalSeconds < 0) { totalSeconds += 86400; }
+    if (totalSeconds >= 86400) { totalSeconds -= 86400; }
+    syncInputsFromTime(); updateDisplay();
+}
+
+// --- 5. 重設時間為凌晨 00:00:00 ---
+function resetTimeToMidnight() {
+    totalSeconds = 0;
+    selectHand(activeHand); 
+    syncInputsFromTime();
+    updateDisplay();
+}
+
+// --- 6. 拖曳與指標事件宣告 (100% 避免 ReferenceError) ---
+function handleStart(e) {
+    isDragging = true;
+    var hour24 = Math.floor(totalSeconds / 3600);
+    var minute = Math.floor((totalSeconds % 3600) / 60);
+    var second = totalSeconds % 60;
+    if (activeHand === 'hour') {
+        currentMinuteRecord = (hour24 % 12);
+    } else if (activeHand === 'minute') {
+        currentMinuteRecord = minute;
+    } else if (activeHand === 'second') {
+        currentMinuteRecord = second;
+    }
+    handleMove(e); 
+    if(e.preventDefault) e.preventDefault(); 
+}
+
+function handleEnd() {
+    isDragging = false;
+}
+
+function handleMove(e) {
+    if (!isDragging) return;
+    if(e.preventDefault) e.preventDefault(); 
+    var rect = clockContainer.getBoundingClientRect();
+    var centerX = rect.left + rect.width / 2;
+    var centerY = rect.top + rect.height / 2;
+    var clientX = 0; var clientY = 0;
+    if (e.clientX !== undefined) {
+        clientX = e.clientX; clientY = e.clientY;
+    } else if (e.touches && e.touches[0]) {
+        clientX = e.touches[0].clientX; clientY = e.touches[0].clientY;
+    } else if (e.changedTouches && e.changedTouches[0]) {
+        clientX = e.changedTouches[0].clientX; clientY = e.changedTouches[0].clientY;
+    }
+    var x = clientX - centerX;
+    var y = clientY - centerY;
+    var angle = Math.atan2(y, x) * (180 / Math.PI);
+    angle += 90;
+    if (angle < 0) angle += 360;
+    var hour24 = Math.floor(totalSeconds / 3600);
+    var minute = Math.floor((totalSeconds % 3600) / 60);
+    var second = totalSeconds % 60;
+    var targetValue = 0;
+    var steps = (activeHand === 'hour') ? 12 : 60;
+    targetValue = Math.round((angle / 360) * steps) % steps;
+    var delta = targetValue - currentMinuteRecord;
+    var halfSteps = steps / 2;
+    if (delta > halfSteps) {
+        delta -= steps;
+    } else if (delta < -halfSteps) {
+        delta += steps;
+    }
+    if (activeHand === 'second') {
+        totalSeconds += delta;
+    } else if (activeHand === 'minute') {
+        totalSeconds += delta * 60;
+    } else if (activeHand === 'hour') {
+        totalSeconds += delta * 3600;
+    }
+    if (totalSeconds < 0) totalSeconds += 86400;
+    if (totalSeconds >= 86400) totalSeconds -= 86400;
+    currentMinuteRecord = targetValue;
+    syncInputsFromTime();
+    updateDisplay();
+}
+
+function initClockFace() {
+    var marksGroup = document.getElementById('clock-marks');
+    var numbersGroup = document.getElementById('clock-numbers');
+    var marksHtml = ""; var numbersHtml = "";
+    for (var i = 0; i < 60; i++) {
+        var angle = (i * 6) * (Math.PI / 180);
+        var isHour = (i % 5 === 0);
+        var strokeWidth = isHour ? 3 : 1;
+        var radius = 89;
+        var x1 = 100 + radius * Math.sin(angle);
+        var y1 = 100 - radius * Math.cos(angle);
+        var x2 = 100 + (radius - (isHour ? 10 : 5)) * Math.sin(angle);
+        var y2 = 100 - (radius - (isHour ? 10 : 5)) * Math.cos(angle);
+        marksHtml += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#333" stroke-width="' + strokeWidth + '" />';
+        if (isHour) {
+            var num = i / 5; if (num === 0) num = 12;
+            var tx = 100 + 69 * Math.sin(angle);
+            var ty = 100 - 69 * Math.cos(angle) + 6; 
+            numbersHtml += '<text x="' + tx + '" y="' + ty + '" text-anchor="middle" font-size="18" font-weight="bold" fill="#333">' + num + '</text>';
+        }
+    }
+    marksGroup.innerHTML = marksHtml;
+    numbersGroup.innerHTML = numbersHtml;
+}
+
+function interpolateColor(color1, color2, factor) {
+    var r = Math.round(color1[0] + (color2[0] - color1[0]) * factor);
+    var g = Math.round(color1[1] + (color2[1] - color1[1]) * factor);
+    var b = Math.round(color1[2] + (color2[2] - color1[2]) * factor);
+    return "rgb(" + r + ", " + g + ", " + b + ")";
+}
+
+function updateDisplay() {
+    var hour24 = Math.floor(totalSeconds / 3600);
+    var minute = Math.floor((totalSeconds % 3600) / 60);
+    var second = totalSeconds % 60;
+    var timeInHours = hour24 + (minute / 60) + (second / 3600);
+    var ampmChinese = getAmpmChinese(totalSeconds);
+    statusText.textContent = (visibilityMode === 'hour') ? "時針已隱藏" : "現在時間：" + ampmChinese;
+    var secondAngle = second * 6;
+    var minuteAngle = minute * 6 + (second / 60) * 6;
+    var hourAngle = ((hour24 % 12) * 30) + (minute / 60) * 30 + (second / 3600) * 30;
+    minuteHand.setAttribute('transform', 'rotate(' + minuteAngle + ', 100, 100)');
+    minuteGrabber.setAttribute('transform', 'rotate(' + minuteAngle + ', 100, 100)');
+    hourHand.setAttribute('transform', 'rotate(' + hourAngle + ', 100, 100)');
+    hourGrabber.setAttribute('transform', 'rotate(' + hourAngle + ', 100, 100)');
+    secondHand.setAttribute('transform', 'rotate(' + secondAngle + ', 100, 100)');
+    secondGrabber.setAttribute('transform', 'rotate(' + secondAngle + ', 100, 100)');
+    var startColorNode = skyColors[0]; var endColorNode = skyColors[skyColors.length - 1];
+    for (var i = 0; i < skyColors.length - 1; i++) {
+        if (timeInHours >= skyColors[i].h && timeInHours <= skyColors[i+1].h) {
+            startColorNode = skyColors[i]; endColorNode = skyColors[i+1]; break;
+        }
+    }
+    var timeRange = endColorNode.h - startColorNode.h;
+    var progress = timeRange === 0 ? 0 : (timeInHours - startColorNode.h) / timeRange;
+    var topRGB = interpolateColor(startColorNode.top, endColorNode.top, progress);
+    var bottomRGB = interpolateColor(startColorNode.bottom, endColorNode.bottom, progress);
+    skyContainer.style.background = "linear-gradient(to bottom, " + topRGB + ", " + bottomRGB + ")";
+    var isDaytime = timeInHours >= 6 && timeInHours < 18;
+    var isNighttime = !isDaytime;
+    for (var j = 0; j < clouds.length; j++) { clouds[j].style.display = isDaytime ? 'block' : 'none'; }
+    for (var k = 0; k < stars.length; k++) { stars[k].style.display = isNighttime ? 'block' : 'none'; }
+    if (meteorShower) { meteorShower.style.display = isNighttime ? 'block' : 'none'; }
+    celestialBody.textContent = isDaytime ? "☀️" : "🌙";
+    var arcProgress;
+    if (isDaytime) { arcProgress = (timeInHours - 6) / 12; } else { var nightTime = timeInHours >= 18 ? timeInHours - 18 : timeInHours + 6; arcProgress = nightTime / 12; }
+    var xPos = 5 + (arcProgress * 90); var yPos = 85 - (Math.sin(arcProgress * Math.PI) * 73); 
+    celestialBody.style.left = xPos + "%"; celestialBody.style.top = yPos + "%";
+}
+
+function syncInputsFromTime() {
+    var hour24 = Math.floor(totalSeconds / 3600);
+    var minute = Math.floor((totalSeconds % 3600) / 60);
+    var second = totalSeconds % 60;
+    var displayHour12 = hour24;
+    var ampmValue = totalSeconds < 43200 ? "AM" : "PM";
+    var ampmChinese = getAmpmChinese(totalSeconds);
+    textAmpm.textContent = ampmChinese; textAmpm.setAttribute('data-value', ampmValue);
+    if (hour24 === 0) { displayHour12 = 0; } else if (hour24 === 12) { displayHour12 = 12; } else if (hour24 > 12) { displayHour12 = hour24 - 12; } else { displayHour12 = hour24; }
+    inputHour12.min = (ampmValue === "AM") ? 0 : 1; inputHour12.max = (ampmValue === "AM") ? 11 : 12;
+    inputHour12.value = padZero(displayHour12); inputMinute12.value = padZero(minute); inputSecond12.value = padZero(second);
+    inputHour24.value = padZero(hour24); inputMinute24.value = padZero(minute); inputSecond24.value = padZero(second);
+}
+
+function setVisibilityMode(mode) {
+    visibilityMode = mode;
+    skyContainer.classList.remove('mode-hide-hour');
+    skyContainer.classList.remove('mode-hide-second');
+    document.getElementById('btn-vis-hour').className = 'seg-btn' + (mode === 'hour' ? ' active' : '');
+    document.getElementById('btn-vis-full').className = 'seg-btn' + (mode === 'full' ? ' active' : '');
+    document.getElementById('btn-vis-second').className = 'seg-btn' + (mode === 'second' ? ' active' : '');
+    var btnSelectHour = document.getElementById('btn-select-hour');
+    var btnSelectSecond = document.getElementById('btn-select-second');
+    if (mode === 'hour') {
+        skyContainer.classList.add('mode-hide-hour'); btnSelectHour.style.display = 'none'; btnSelectSecond.style.display = 'inline-block';
+        if (activeHand === 'hour') { selectHand('minute'); }
+    } else if (mode === 'second') {
+        skyContainer.classList.add('mode-hide-second'); btnSelectHour.style.display = 'inline-block'; btnSelectSecond.style.display = 'none'; 
+        if (activeHand === 'second') { selectHand('minute'); }
+    } else {
+        btnSelectHour.style.display = 'inline-block'; btnSelectSecond.style.display = 'inline-block';
+    }
+    updateDisplay();
+}
+
+function selectHand(hand) {
+    activeHand = hand;
+    document.getElementById('btn-select-hour').className = 'select-hand-btn' + (hand === 'hour' ? ' active' : '');
+    document.getElementById('btn-select-minute').className = 'select-hand-btn' + (hand === 'minute' ? ' active' : '');
+    document.getElementById('btn-select-second').className = 'select-hand-btn' + (hand === 'second' ? ' active' : '');
+    hourGrabber.style.pointerEvents = (hand === 'hour') ? 'auto' : 'none';
+    minuteGrabber.style.pointerEvents = (hand === 'minute') ? 'auto' : 'none';
+    secondGrabber.style.pointerEvents = (hand === 'second') ? 'auto' : 'none';
+}
+
+function handle12hChange() {
+    var h = parseInt(inputHour12.value, 10); var m = parseInt(inputMinute12.value, 10); var s = parseInt(inputSecond12.value, 10);
+    if (isNaN(h)) h = 0; if (isNaN(m)) m = 0; if (isNaN(s)) s = 0;
+    var ampm = textAmpm.getAttribute('data-value') || "AM";
+    var maxHour = (ampm === 'AM' ? 11 : 12); var minHour = (ampm === 'AM' ? 0 : 1);
+    if (h > maxHour) { h = maxHour; inputHour12.value = h; }
+    if (h < minHour && inputHour12.value !== "") { h = minHour; inputHour12.value = h; }
+    if (m > 59) { m = 59; inputMinute12.value = m; }
+    if (m < 0) { m = 0; inputMinute12.value = m; }
+    if (s > 59) { s = 59; inputSecond12.value = s; }
+    if (s < 0) { s = 0; inputSecond12.value = s; }
+    var targetHour24 = h;
+    if (ampm === 'PM') { if (h === 12) { targetHour24 = 12; } else { targetHour24 = h + 12; } } 
+    else { if (h === 12) { targetHour24 = 0; } else { targetHour24 = h; } }
+    totalSeconds = targetHour24 * 3600 + m * 60 + s;
+    selectHand(activeHand); updateDisplay();
+    inputHour24.value = padZero(targetHour24); inputMinute24.value = padZero(m); inputSecond24.value = padZero(s);
+}
+
+function handle24hChange() {
+    var h = parseInt(inputHour24.value, 10); var m = parseInt(inputMinute24.value, 10); var s = parseInt(inputSecond24.value, 10);
+    if (isNaN(h)) h = 0; if (isNaN(m)) m = 0; if (isNaN(s)) s = 0;
+    if (h > 23) { h = 23; inputHour24.value = h; }
+    if (h < 0) { h = 0; inputHour24.value = h; }
+    if (m > 59) { m = 59; inputMinute24.value = m; }
+    if (m < 0) { m = 0; inputMinute24.value = m; }
+    if (s > 59) { s = 59; inputSecond24.value = s; }
+    if (s < 0) { s = 0; inputSecond24.value = s; }
+    totalSeconds = h * 3600 + m * 60 + s;
+    selectHand(activeHand); updateDisplay();
+    var displayHour12 = h; var ampmValue = h < 12 ? "AM" : "PM"; var ampmChinese = getAmpmChinese(totalSeconds);
+    textAmpm.textContent = ampmChinese; textAmpm.setAttribute('data-value', ampmValue);
+    if (h === 0) { displayHour12 = 0; } else if (h === 12) { displayHour12 = 12; } else if (h > 12) { displayHour12 = h - 12; } else { displayHour12 = h; }
+    inputHour12.value = padZero(displayHour12); inputMinute12.value = padZero(m); inputSecond12.value = padZero(s);
+}
+
+function formatOnBlur12h(inputEl) {
+    var val = parseInt(inputEl.value, 10); if (isNaN(val)) val = 0;
+    if (inputEl.id === 'input-hour-12') {
+        var ampm = textAmpm.getAttribute('data-value') || "AM";
+        if (ampm === 'AM' && val > 11) val = 11;
+        if (ampm === 'PM' && val === 0) val = 12; 
+        if (ampm === 'PM' && val > 12) val = 12;
+    }
+    inputEl.value = padZero(val);
+}
+
+function formatOnBlur24h(inputEl) {
+    var val = parseInt(inputEl.value, 10); if (isNaN(val)) val = 0;
+    if (inputEl.id === 'input-hour-24') { if (val > 23) val = 23; if (val < 0) val = 0; }
+    inputEl.value = padZero(val);
+}
+
+function registerEvents() {
+    var grabbers = [hourGrabber, minuteGrabber, secondGrabber];
+    for (var i = 0; i < grabbers.length; i++) {
+        var el = grabbers[i];
+        if (window.PointerEvent) { el.addEventListener('pointerdown', handleStart); } 
+        else {
+            el.addEventListener('mousedown', handleStart);
+            try { el.addEventListener('touchstart', handleStart, {passive: false}); } 
+            catch(err) { el.addEventListener('touchstart', handleStart); }
+        }
+    }
+    if (window.PointerEvent) {
+        document.addEventListener('pointermove', handleMove);
+        document.addEventListener('pointerup', handleEnd);
+    } else {
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove, {passive: false});
+        document.addEventListener('touchend', handleEnd);
+    }
+}
+
+initClockFace();
+syncInputsFromTime();
+updateDisplay();
+registerEvents();
+selectHand('minute'); 
+</script>
+</body>
+</html>

@@ -11,9 +11,34 @@
         .left-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; position: relative; z-index: 3; margin-right: 20px; }
         .right-panel { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; padding: 10px; box-sizing: border-box; gap: 15px; position: relative; z-index: 10; margin-left: 20px; }
         #left-controls-container { position: absolute; bottom: 15px; left: 15px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; z-index: 100; }
+        
+        /* 頂層按鈕橫向排版 */
+        #top-btn-row { display: flex; gap: 8px; }
+
         #btn-reset { background-color: #ff4d4d; color: white; border: none; border-radius: 8px; padding: 5px 10px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.15); transition: 0.2s; outline: none; user-select: none; -webkit-user-select: none; }
         #btn-reset:hover { background-color: #ff3333; transform: scale(1.05); }
         #btn-reset:active { transform: scale(0.95); }
+
+        /* --- 新增：現在時間按鈕與呼吸燈樣式 --- */
+        #btn-realtime {
+            background-color: #f39c12; /* 溫馨橘色 */
+            color: white; border: none; border-radius: 8px;
+            padding: 5px 10px; font-size: 13px; font-weight: bold;
+            cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+            transition: 0.2s; outline: none; user-select: none; -webkit-user-select: none;
+        }
+        #btn-realtime:hover { background-color: #e67e22; transform: scale(1.05); }
+        /* 當開啟即時對時時的綠色呼吸燈效果 */
+        #btn-realtime.active {
+            background-color: #2ecc71;
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(46, 204, 113, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+        }
+
         #visibility-segmented { display: flex; background: rgba(255, 255, 255, 0.85); padding: 3px; border-radius: 10px; box-shadow: 0 3px 8px rgba(0,0,0,0.15); gap: 3px; }
         .seg-btn { background-color: transparent; color: #555; border: none; border-radius: 6px; padding: 6px 11px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; outline: none; user-select: none; -webkit-user-select: none; }
         .seg-btn:hover { background-color: rgba(0, 0, 0, 0.05); }
@@ -56,10 +81,7 @@
         .time-input:hover, .time-input:focus { border-bottom: 2px solid #4CAF50; background: rgba(76, 175, 80, 0.05); }
         .time-input::-webkit-outer-spin-button, .time-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .time-input { -moz-appearance: textfield; }
-        
-        /* 修正：單位「時、分、秒」全面改為高對比亮綠色 */
         .unit-span { font-size: 20px; font-weight: bold; justify-self: center; color: #4CAF50; user-select: none; -webkit-user-select: none; }
-        
         #clock-container { width: 82vmin; height: 82vmin; max-width: 440px; max-height: 440px; background: transparent; touch-action: none; filter: drop-shadow(0px 8px 16px rgba(0,0,0,0.45)); z-index: 3; position: relative; }
         #status-text { font-size: 24px; font-weight: bold; color: #fff; margin-top: 15px; z-index: 10; text-shadow: 2px 2px 6px rgba(0,0,0,0.7); }
         #watermark { position: absolute; bottom: 15px; right: 15px; font-size: 14px; color: rgba(255, 255, 255, 0.85); font-weight: bold; z-index: 100; pointer-events: none; user-select: none; -webkit-user-select: none; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
@@ -93,8 +115,13 @@
     </div>
     <div id="celestial-body">🌙</div>
 
+    <!-- 左下角控制板 (頂層新增並列的現在時間按鈕) -->
     <div id="left-controls-container">
-        <button id="btn-reset" onclick="resetTimeToMidnight()">時間重置 ↺</button>
+        <!-- 頂層按鈕排 -->
+        <div id="top-btn-row">
+            <button id="btn-reset" onclick="resetTimeToMidnight()">時間重置 ↺</button>
+            <button id="btn-realtime" onclick="toggleRealTime()">現在時間 ⏱️</button>
+        </div>
         <div id="hand-selector">
             <button id="btn-select-hour" class="select-hand-btn" onclick="selectHand('hour')">時針</button>
             <button id="btn-select-minute" class="select-hand-btn active" onclick="selectHand('minute')">分針</button>
@@ -107,6 +134,7 @@
         </div>
     </div>
 
+    <!-- 1. 左半部畫面：時鐘 -->
     <div class="left-panel">
         <svg id="clock-container" viewBox="0 0 200 200">
             <defs>
@@ -140,6 +168,7 @@
         <div id="status-text">現在時間：凌晨</div>
     </div>
 
+    <!-- 2. 右半部畫面：上下分割對照 -->
     <div class="right-panel">
         <div class="control-panel">
             <div class="panel-title">12 小時制</div>
@@ -208,6 +237,7 @@ var isDragging = false;
 var activeHand = "minute"; 
 var currentMinuteRecord = totalSeconds % 60;
 var visibilityMode = "full"; 
+var realTimeInterval = null; // 即時對時定時器
 
 var skyColors = [
     { h: 0,  top: [11, 25, 44],   bottom: [26, 54, 93] },     
@@ -247,14 +277,52 @@ function padZero(num) {
 
 function getAmpmChinese(seconds) {
     var h = Math.floor(seconds / 3600);
-    if (seconds === 0) { return "凌晨"; } 
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = seconds % 60;
+    if (h === 0 && m === 0 && s === 0) { return "凌晨"; } 
     else if (seconds > 0 && seconds < 43200) { return "上午"; } 
     else if (h === 12) { return "中午"; } 
     else { return "下午"; }
 }
 
-// --- 4. 點擊按鈕 ▲ / ▼ 的秒級微調函數 ---
+// 智慧中斷即時對時：只要有任何操作、手動調整、點擊重置，即自動關閉對時
+function stopRealTime() {
+    if (realTimeInterval) {
+        clearInterval(realTimeInterval);
+        realTimeInterval = null;
+        var btn = document.getElementById('btn-realtime');
+        if (btn) {
+            btn.classList.remove('active');
+            btn.textContent = "現在時間 ⏱️";
+        }
+    }
+}
+
+// 點擊「現在時間」開關切換
+function toggleRealTime() {
+    var btn = document.getElementById('btn-realtime');
+    if (realTimeInterval) {
+        stopRealTime();
+    } else {
+        btn.classList.add('active');
+        btn.textContent = "即時對時 ⏱️";
+        syncToActualTime();
+        realTimeInterval = setInterval(syncToActualTime, 1000);
+    }
+}
+
+function syncToActualTime() {
+    var now = new Date();
+    var h = now.getHours();
+    var m = now.getMinutes();
+    var s = now.getSeconds();
+    totalSeconds = h * 3600 + m * 60 + s;
+    syncInputsFromTime();
+    updateDisplay();
+}
+
 function adjustTime(type, amount) {
+    stopRealTime(); // 中斷即時對時
     if (type === 'hour') { totalSeconds += amount * 3600; } 
     else if (type === 'minute') { totalSeconds += amount * 60; } 
     else if (type === 'second') { totalSeconds += amount; }
@@ -263,16 +331,8 @@ function adjustTime(type, amount) {
     syncInputsFromTime(); updateDisplay();
 }
 
-// --- 5. 重設時間為凌晨 00:00:00 ---
-function resetTimeToMidnight() {
-    totalSeconds = 0;
-    selectHand(activeHand); 
-    syncInputsFromTime();
-    updateDisplay();
-}
-
-// --- 6. 拖曳與指標事件宣告 (100% 避免 ReferenceError) ---
 function handleStart(e) {
+    stopRealTime(); // 中斷即時對時
     isDragging = true;
     var hour24 = Math.floor(totalSeconds / 3600);
     var minute = Math.floor((totalSeconds % 3600) / 60);
@@ -317,6 +377,8 @@ function handleMove(e) {
     var targetValue = 0;
     var steps = (activeHand === 'hour') ? 12 : 60;
     targetValue = Math.round((angle / 360) * steps) % steps;
+    
+    // 智慧絕對軌跡演算 (防卡頓，指哪到哪)
     var delta = targetValue - currentMinuteRecord;
     var halfSteps = steps / 2;
     if (delta > halfSteps) {
@@ -423,6 +485,14 @@ function syncInputsFromTime() {
     inputHour24.value = padZero(hour24); inputMinute24.value = padZero(minute); inputSecond24.value = padZero(second);
 }
 
+function resetTimeToMidnight() {
+    stopRealTime(); // 中斷即時對時
+    totalSeconds = 0;
+    selectHand(activeHand); 
+    syncInputsFromTime();
+    updateDisplay();
+}
+
 function setVisibilityMode(mode) {
     visibilityMode = mode;
     skyContainer.classList.remove('mode-hide-hour');
@@ -455,6 +525,7 @@ function selectHand(hand) {
 }
 
 function handle12hChange() {
+    stopRealTime(); // 中斷即時對時
     var h = parseInt(inputHour12.value, 10); var m = parseInt(inputMinute12.value, 10); var s = parseInt(inputSecond12.value, 10);
     if (isNaN(h)) h = 0; if (isNaN(m)) m = 0; if (isNaN(s)) s = 0;
     var ampm = textAmpm.getAttribute('data-value') || "AM";
@@ -474,6 +545,7 @@ function handle12hChange() {
 }
 
 function handle24hChange() {
+    stopRealTime(); // 中斷即時對時
     var h = parseInt(inputHour24.value, 10); var m = parseInt(inputMinute24.value, 10); var s = parseInt(inputSecond24.value, 10);
     if (isNaN(h)) h = 0; if (isNaN(m)) m = 0; if (isNaN(s)) s = 0;
     if (h > 23) { h = 23; inputHour24.value = h; }
